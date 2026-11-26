@@ -117,6 +117,31 @@ $body | curl.exe -i -X POST http://127.0.0.1/ask -H 'Content-Type: application/j
 | `GET /health` | `200 OK` | Có `Server: nginx`. JSON có `"status": "ok"` và `"version": "2.0.0"`. |
 | `POST /ask` với JSON `{"question":"Explain microservices"}` | `200 OK` | Có `Server: nginx`. JSON trả `{"answer":"Agent đang hoạt động tốt! (mock response) Hỏi thêm câu hỏi đi nhé."}`. |
 
+## Part 3 — Cloud Deployment
+
+### Exercise 3.2 — Triển khai trên Render
+
+Blueprint `day14-lab` triển khai commit `742e817` và Render hiển thị web service `day14-agent` ở trạng thái Live. Kiểm tra qua URL công khai nhận `200` từ `/health` và `/ready`. `POST /ask` trả `401` khi thiếu API key và `200` khi có key đúng. Lệnh kiểm tra, URL, biến môi trường và kết quả được ghi trong [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### So sánh cấu hình Railway và Render
+
+| Mục | `railway.toml` mẫu | `render.yaml` của Part 6 |
+| --- | --- | --- |
+| Build và chạy | Chọn `NIXPACKS` và khai báo `startCommand` để chạy Uvicorn trên `$PORT`. | Chọn `runtime: docker` và đặt `rootDir: 06-lab-complete`. Render dùng Dockerfile trong thư mục đó, nên phiên bản Python và dependencies trùng với image đã kiểm tra local. |
+| Health check | Đặt `healthcheckPath = "/health"` và timeout 30 giây trong `[deploy]`. | Đặt `healthCheckPath: /health` trên web service. |
+| Redis và secret | File mẫu cấu hình một app. Cần thêm Redis trong project và đặt biến kết nối cùng API key trong Railway Dashboard hoặc CLI. | Blueprint khai báo cả web service và Key Value cùng region, gán `REDIS_URL` từ connection string nội bộ và sinh `AGENT_API_KEY` khi tạo service. |
+
+[Railway TOML mẫu](03-cloud-deployment/railway/railway.toml) · [Render Blueprint](06-lab-complete/render.yaml)
+
+### Exercise 3.3 — Pipeline Cloud Run
+
+1. Cloud Build cài dependencies và chạy `pytest` trong container `python:3.11-slim`.
+2. Bước build dùng Docker để tạo image với hai tag `$COMMIT_SHA` và `latest`, rồi bước push tải cả hai tag lên registry của project.
+3. `gcloud run deploy` triển khai image theo tag `$COMMIT_SHA` lên Cloud Run tại `asia-southeast1` và cấu hình CPU, bộ nhớ, giới hạn scale cùng biến môi trường và secret.
+4. `service.yaml` mô tả cấu hình khai báo của service, gồm concurrency 80, timeout 60 giây, liveness probe `/health`, startup probe `/ready` và tham chiếu Secret Manager.
+
+[Cloud Build](03-cloud-deployment/production-cloud-run/cloudbuild.yaml) · [Cloud Run service](03-cloud-deployment/production-cloud-run/service.yaml)
+
 ## Part 4 — API Security
 
 ### Exercise 4.1 — Xác thực bằng API key
@@ -296,3 +321,7 @@ Result: 12/12 tiêu chí đạt · 42/42 checks passed
 - Tôi chạy checker đầy đủ trong Ubuntu và nhận `7/12`. AI đối chiếu lỗi Docker trong WSL, sửa phần bị lặp ở dòng `CMD` trong Dockerfile và dùng trình phân tích JSON để kiểm tra cú pháp. Tôi bật tích hợp Docker cho Ubuntu, thêm tài khoản vào nhóm `docker` và chạy lại.
 - Khi checker đạt `11/12` nhưng Compose ghép sai đường dẫn, AI hướng dẫn chạy từ bản sao trên hệ thống tệp Linux. Tôi tự kiểm tra lại Compose và chạy checker đầy đủ. Kết quả cuối cùng là `PASS 12/12` với `42/42 checks passed`.
 - Khi tôi hỏi cách deploy ở Part 3, AI đối chiếu tài liệu Render và cập nhật Blueprint dùng Dockerfile của Part 6, Key Value nội bộ và API key do Render sinh. Tôi sẽ xác nhận cấu hình bằng các lệnh thử trên URL công khai sau khi triển khai.
+- Ở Part 3, tôi tự push code, kết nối repo và khởi chạy Blueprint trên Render. AI đối chiếu `railway.toml`, `render.yaml`, `cloudbuild.yaml` và `service.yaml` để gợi ý phần so sánh và mô tả pipeline.
+- Tôi kiểm tra `day14-agent` ở trạng thái Live trên Render. AI gọi `/health`, `/ready` và `/ask` thiếu key qua URL công khai rồi ghi các phản hồi thực tế vào `DEPLOYMENT.md`.
+- Tôi lấy API key trong Render và tự chạy bốn lệnh kiểm tra trên URL công khai. Kết quả lần lượt là `200`, `200`, `401`, `200`. AI ghi kết quả xác thực vào hai file báo cáo.
+- Sau khi tôi nhờ hoàn thiện Part 7, AI chạy load test, eval và stack observability trên Ubuntu WSL của máy lab, sửa hai mục KB mà eval xác định còn thiếu, thêm histogram chiều dài câu hỏi và sửa đường dẫn cài thư viện trong Dockerfile observability. Số liệu lấy từ lượt chạy thực tế trên máy lab. Các báo cáo và ảnh chụp dùng để đối chiếu nằm trong [BENCHMARK_REPORT.md](BENCHMARK_REPORT.md).
